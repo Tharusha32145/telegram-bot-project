@@ -13,7 +13,7 @@ CHANNEL_ID = int(os.environ.get("CHANNEL_ID"))
 # --- ඔයාගේ වීඩියෝ විස්තර මෙතන දාන්න ---
 VIDEO_MAP = {
     "video1": {
-        "source": "https://files.example.com/sample1.mp4",
+        "source": "https://sujanch-stream.koyeb.app/238145?hash=AgAD6B",
         "caption": "🎬 මේ වීඩියෝව විනාඩි 30කින් ඉබේම මැකී යනු ඇත."
     },
     "video2": {
