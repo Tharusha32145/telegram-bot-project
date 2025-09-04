@@ -1,74 +1,80 @@
+# main.py (Private Mode + Download Protection සහිත, අවසානම code එක)
+
 import os
 import asyncio
 from telethon import TelegramClient, events
 from flask import Flask
 from threading import Thread
 
-# --- Replit Secrets වලින් මේවා ගනී ---
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHANNEL_ID = int(os.environ.get("CHANNEL_ID"))
+# --- 1. CONFIGURATION (සැකසුම්) ---
+try:
+    API_ID = int(os.environ.get("API_ID"))
+    API_HASH = os.environ.get("API_HASH")
+    BOT_TOKEN = os.environ.get("BOT_TOKEN")
+except (ValueError, TypeError):
+    print("!!! ERROR: Secrets (API_ID, API_HASH, BOT_TOKEN) හරියටම දාලා නෑ වගේ. Check කරන්න. !!!")
+    exit()
 
-# --- ඔයාගේ වීඩියෝ විස්තර මෙතන දාන්න ---
 VIDEO_MAP = {
     "video1": {
         "source": "https://sujanch-stream.koyeb.app/238145?hash=AgAD6B",
         "caption": "🎬 මේ වීඩියෝව විනාඩි 30කින් ඉබේම මැකී යනු ඇත."
-    },
-    "video2": {
-        "source": "https://files.example.com/sample2.mp4", 
-        "caption": "🎬 මේකත් විනාඩි 30කින් delete වෙනවා."
     }
 }
+DELETE_AFTER_SECONDS = 30 * 60
 
-DELETE_AFTER_SECONDS = 30 * 60  # විනාඩි 30
+# --- 2. FLASK WEB SERVER (24/7 Online තියාගන්න) ---
+app = Flask('')
+@app.route('/')
+def home():
+    return "I am alive and running!"
+def run_web_server():
+    app.run(host='0.0.0.0', port=8080)
+def keep_alive():
+    server_thread = Thread(target=run_web_server)
+    server_thread.daemon = True
+    server_thread.start()
 
-# --- Bot Code එක ---
+# --- 3. TELEGRAM BOT (ප්‍රධානම කොටස) ---
 client = TelegramClient('bot_session', API_ID, API_HASH)
 
 @client.on(events.NewMessage(pattern=r'/start (.*)'))
 async def start_handler(event):
-    # ... (කලින් code එකේ තිබ්බ start_handler function එකේ ඉතුරු ටික මෙතන තියෙනවා)
-    payload = event.pattern_match.group(1)
-    video_data = VIDEO_MAP.get(payload)
-
-    if not video_data:
-        await event.respond("වීඩියෝව සොයාගත නොහැක. (Video not found.)")
+    payload = event.pattern_match.group(1).strip()
+    if not payload:
+        await event.respond("Please use the button from the Blogger post to get a video.")
         return
+        
+    video_data = VIDEO_MAP.get(payload)
+    if not video_data:
+        await event.respond(f"Sorry, I couldn't find a video for '{payload}'.")
+        return
+        
     try:
-        await event.respond("වීඩියෝව චැනලයට යවමින් පවතී...")
-        msg = await client.send_file(CHANNEL_ID, file=video_data["source"], caption=video_data["caption"])
-        await event.respond("✅ වීඩියෝව චැනලයට යවන ලදී. එය විනාඩි 30කින් මැකී යනු ඇත.")
+        await event.respond("Preparing your video, please wait...")
+        
+        # --- මෙතන තමයි ප්‍රධානම වෙනස්කම් දෙක තියෙන්නේ ---
+        video_msg = await client.send_file(
+            event.chat_id,  # 1. Channel එකට නෙවෙයි, message එක එවපු කෙනාටම යවනවා
+            file=video_data["source"],
+            caption=video_data.get("caption", ""),
+            noforwards=True  # 2. Forward/Download කරන එක නවත්වනවා
+        )
+        
         await asyncio.sleep(DELETE_AFTER_SECONDS)
-        await client.delete_messages(CHANNEL_ID, msg.id)
-        print(f"Message {msg.id} deleted.")
+        await client.delete_messages(event.chat_id, video_msg.id)
+        print(f"Message {video_msg.id} deleted for user {event.sender_id}")
     except Exception as e:
-        await event.respond(f"❌ යම් දෝෂයක් සිදු විය: {e}")
-        print(f"Error: {e}")
+        await event.respond(f"An error occurred: {e}")
+        print(f"!!! ERROR in start_handler: {e} !!!")
 
-# --- 24/7 Online තියාගන්න පොඩි Web Server එකක් ---
-app = Flask('')
-@app.route('/')
-def home():
-    return "I'm alive!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-
-# --- Bot ව සහ Server එක Run කරන තැන ---
-async def main():
-    print("Bot is starting...")
+async def run_bot():
     await client.start(bot_token=BOT_TOKEN)
-    print("Bot has started successfully!")
+    print(">>> Telegram Bot is ONLINE! <<<")
     await client.run_until_disconnected()
 
-if __name__ == '__main__':
+# --- 4. PROGRAM එක පටන් ගන්නා තැන ---
+if __name__ == "__main__":
     keep_alive()
-    # Telethon asyncio loop එක run කරනවා
     with client:
-        client.loop.run_until_complete(main())
+        client.loop.run_until_complete(run_bot())
